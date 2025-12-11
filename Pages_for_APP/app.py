@@ -44,7 +44,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("## 📊 ANALYSIS")
 with st.sidebar:
     if st.button("🏠 Home", use_container_width=True, key="nav_home"):
-        st.switch_page("pages/1_🏠_Home.py")
+        st.switch_page("Pages_for_APP/1_🏠_Home.py")
     
     if st.button("📊 Sessions", use_container_width=True, key="nav_sessions"):
         st.switch_page("pages/2_📊_Sessions.py")
