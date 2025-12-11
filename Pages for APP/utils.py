@@ -14,6 +14,7 @@ from sklearn.preprocessing import MinMaxScaler
 from typing import List, Optional, Tuple
 
 from mp_intensity_pipeline import build_session_intensity_df, IntensityWeights
+from src.config import WINDOW_COLOR_MAP, get_window_color
 
 
 # ============================================================================
@@ -180,7 +181,8 @@ def apply_filters(
 def plot_intensity_over_time(df: pd.DataFrame) -> go.Figure:
     """
     Plot session intensity index over time.
-    If multiple players, show separate lines per player.
+    If multiple players, show separate lines per player using coach-friendly display names.
+    Assumes df has player_display and event_display columns.
     """
     if len(df) == 0:
         return go.Figure().add_annotation(text="No data to display")
@@ -189,13 +191,15 @@ def plot_intensity_over_time(df: pd.DataFrame) -> go.Figure:
         df.sort_values('date'),
         x='date',
         y='session_intensity_index',
-        color='player_id',
+        color='player_display',
+        hover_name='event_display',
+        hover_data={'player_display': True, 'date': True, 'session_intensity_index': ':.2f'},
         markers=True,
         title="Session Intensity Over Time",
-        labels={'session_intensity_index': 'Intensity (z)', 'date': 'Date', 'player_id': 'Player'}
+        labels={'session_intensity_index': 'Intensity (z)', 'date': 'Date', 'player_display': 'Player'}
     )
     
-    fig.update_layout(hovermode='x unified', height=500)
+    fig.update_layout(hovermode='x unified', height=500, legend_title_text='Player')
     return fig
 
 
@@ -248,7 +252,8 @@ def plot_intensity_distribution(df: pd.DataFrame) -> go.Figure:
 def plot_player_scatter(df: pd.DataFrame) -> go.Figure:
     """
     Plot load vs intensity scatter plot.
-    Bubble size represents MDP 10s, color represents player.
+    Bubble size represents MDP 10s, color represents player using coach-friendly display names.
+    Assumes df has player_display and event_display columns.
     """
     if len(df) == 0:
         return go.Figure().add_annotation(text="No data to display")
@@ -258,13 +263,14 @@ def plot_player_scatter(df: pd.DataFrame) -> go.Figure:
         x='total_mp_load',
         y='session_intensity_index',
         size='mdp_10',
-        color='player_id',
-        hover_data=['date', 'session_duration_s'],
+        color='player_display',
+        hover_name='event_display',
+        hover_data={'player_display': True, 'date': True, 'total_mp_load': ':.0f', 'session_intensity_index': ':.2f', 'mdp_10': ':.0f'},
         title="Session Intensity vs Total MP Load",
-        labels={'total_mp_load': 'Total MP Load', 'session_intensity_index': 'Intensity (z)', 'mdp_10': 'Peak 10s'}
+        labels={'total_mp_load': 'Total MP Load (A.U.)', 'session_intensity_index': 'Intensity (z)', 'mdp_10': 'Peak 10s (W)', 'player_display': 'Player'}
     )
     
-    fig.update_layout(height=500)
+    fig.update_layout(height=500, legend_title_text='Player')
     return fig
 
 
@@ -278,6 +284,9 @@ def plot_rolling_window_lines(
     """
     Plot rolling window intensity lines over time for a single player/session.
     
+    Each window is assigned a consistent, high-contrast color from WINDOW_COLOR_MAP.
+    This ensures 5s is always red, 10s always blue, etc., regardless of selection.
+    
     Optionally adds color-coded MDP overlay regions.
     """
     if len(df) == 0:
@@ -287,12 +296,19 @@ def plot_rolling_window_lines(
     
     for window in window_options:
         if window in df.columns:
+            # Format trace name (e.g. "intensity_10s" -> "10s window")
+            trace_name = window.replace('intensity_', '').replace('s', 's window')
+            
+            # Get color from map (supports multiple naming conventions)
+            color = get_window_color(trace_name) or get_window_color(window) or "#333333"
+            
             fig.add_trace(go.Scatter(
                 x=df['timestamp'],
                 y=df[window],
                 mode='lines',
-                name=window.replace('intensity_', '').replace('s', 's window'),
-                opacity=0.7 if window == 'intensity' else 1.0
+                name=trace_name,
+                opacity=0.7 if window == 'intensity' else 1.0,
+                line=dict(color=color, width=2.0)  # Thicker lines for clarity
             ))
     
     fig.update_layout(
@@ -300,7 +316,15 @@ def plot_rolling_window_lines(
         xaxis_title="Time",
         yaxis_title="Intensity",
         hovermode='x unified',
-        height=600
+        height=600,
+        legend=dict(
+            title_text="Intensity window",
+            orientation="v",
+            yanchor="top",
+            y=1.0,
+            xanchor="right",
+            x=0.99,
+        )
     )
     
     # Add MDP overlays if provided
